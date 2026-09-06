@@ -1,0 +1,24 @@
+{
+  "corpus": "flores",
+  "languages": {
+    "eng": "eng_Latn",
+    "hin": "hin_Deva",
+    "ben": "ben_Beng",
+    "mar": "mar_Deva",
+    "kan": "kan_Knda",
+    "tam": "tam_Taml",
+    "tel": "tel_Telu"
+  },
+  "raw_lines": 1012,
+  "dropped_blank_or_unaligned": 0,
+  "sentences": 1012,
+  "sha256": {
+    "eng": "612e9fbe87997617",
+    "hin": "cf856e9b9f0482c6",
+    "ben": "1a9eb2414d9a183d",
+    "mar": "3205f4cf9f4807c4",
+    "kan": "1c2ad99773578b11",
+    "tam": "374e127bb2406d24",
+    "tel": "b8720192c812e8b6"
+  }
+}

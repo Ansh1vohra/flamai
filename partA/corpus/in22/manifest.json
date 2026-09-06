@@ -1,0 +1,24 @@
+{
+  "corpus": "in22",
+  "languages": {
+    "eng": "eng_Latn",
+    "hin": "hin_Deva",
+    "ben": "ben_Beng",
+    "mar": "mar_Deva",
+    "kan": "kan_Knda",
+    "tam": "tam_Taml",
+    "tel": "tel_Telu"
+  },
+  "raw_lines": 1024,
+  "dropped_blank_or_unaligned": 0,
+  "sentences": 1024,
+  "sha256": {
+    "eng": "0f982c155c761474",
+    "hin": "21490be6b8e04ee2",
+    "ben": "aba83ad9a1107bd5",
+    "mar": "aa89e4ef668d72a5",
+    "kan": "ee7239882ec47348",
+    "tam": "1971239f0d90870a",
+    "tel": "4306570b1e86f123"
+  }
+}

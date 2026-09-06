@@ -1,0 +1,194 @@
+
+==============================================================================
+B1 (a) KV-cache bytes per token
+==============================================================================
+  2 (K and V) x 28 layers x 8 kv_heads x 128 head_dim x 2 bytes (fp16)
+  = 2 x 28 x 8 x 128 x 2
+  = 114,688 bytes/token  = 112 KiB/token
+  NOTE: head_dim x kv_heads = 1024 != d_model 3072; GQA with
+        24 Q heads / 8 KV heads is a 3x saving vs MHA (344,064 B/token).
+
+B1 (b) concurrent 4096-token sequences
+  KV per full 4096-token sequence = 114,688 x 4096 = 469,762,048 B = 0.4375 GiB
+  weights   = 4.2e+09 params x 2 B = 8.4 GB = 7.823 GiB
+  overhead  = 1.6 GB = 1.490 GiB
+
+  The spec says 'L4 (24 GB)'. That is ambiguous, and the ambiguity is
+  worth ~3 sequences, so compute both:
+
+    total=24 GiB (naive reading of '24 GB')
+      budget  = 0.92 x 24.000 GiB = 22.080 GiB
+      KV pool = 22.080 - 7.823 - 1.490 = 12.767 GiB
+      seqs    = 12.767 / 0.4375 = 29.18  ->  29
+
+    total=22.49 GiB (what an L4 actually reports: 23028 MiB)
+      budget  = 0.92 x 22.488 GiB = 20.689 GiB
+      KV pool = 20.689 - 7.823 - 1.490 = 11.376 GiB
+      seqs    = 11.376 / 0.4375 = 26.00  ->  26
+
+==============================================================================
+B1 (c) check the prediction against the log
+==============================================================================
+  Rows with prompt_len=3584, gen_len=512 hold exactly 4096 tokens/seq,
+  so kv_cache_util maps directly onto 'sequences resident'.
+
+   batch  preempted  resident  kv_util  implied capacity
+       4          0         4     0.16              25.0
+       8          0         8     0.31              25.8
+      16          0        16     0.62              25.8
+      24          0        24     0.93              25.8
+      32          7        25     0.97              33.0
+      48         23        25     0.97              49.5
+
+  Two independent readings of the same rows:
+    - batch 32 runs 32-7  = 25 sequences without preemption
+    - batch 48 runs 48-23 = 25 sequences without preemption
+    - batch 24 at 0.93 util implies 24/0.93 = 25.8 slots
+  => the machine actually holds ~25-26 full-length sequences.
+
+  Back-solving from the batch-24 row (the cleanest: util 0.93, 0 preempted):
+    KV in use   = 24 x 4096 x 114,688 = 10.500 GiB
+    pool size   = 10.500 / 0.93 = 11.290 GiB
+    implied HBM = (11.290 + 7.823 + 1.490) / 0.92 = 22.40 GiB
+  22.40 GiB is the real usable capacity of an L4, not 24 GiB.
+  VERDICT: the 22.49 GiB arithmetic (~26 seqs) matches the log to within one
+  sequence; the naive 24 GiB arithmetic (~29) over-predicts by ~12%.
+
+==============================================================================
+B2  The long-context throughput anomaly
+==============================================================================
+   batch   wall_s  reported  goodput    ttft     itl   e2e_p95  preempt  kv_util  gp/seq
+       4    28.98     565.4     70.7   483.2   51.33   32673.3        0     0.16   17.67
+       8    36.30     902.6    112.8   519.0   62.26   39982.9        0     0.31   14.10
+      16    49.97    1311.4    163.9   498.3   77.20   54602.1        0     0.62   10.25
+      24    61.16    1607.4    200.9   500.5   96.07   69221.3        0     0.93    8.37
+      32    94.71    1384.0    173.0   636.9  101.79   97465.7        7     0.97    5.41
+      48   151.41    1298.5    162.3   955.4  100.00  105427.5       23     0.97    3.38
+
+  ANOMALY: throughput is not monotone in batch. It rises 4->24 and then
+  FALLS: reported 1607.4 (b24) -> 1384.0 (b32) -> 1298.5 (b48).
+  Goodput falls the same way: 200.9 -> 173.0 -> 162.3 tok/s.
+  Adding 24 more concurrent requests made the server slower in absolute terms.
+
+  MECHANISM, column by column:
+   - kv_cache_util saturates: 0.62 (b16) -> 0.93 (b24) -> 0.97 (b32) -> 0.97 (b48).
+     It stops at 0.97 because there is no more pool; b32 and b48 are pinned.
+   - preempted_seqs steps 0 -> 0 -> 7 -> 23 at exactly that point. From B1,
+     capacity is ~25 full sequences: 32-7 = 25 and 48-23 = 25. The scheduler
+     admits 25 and evicts the rest.
+   - itl_ms_p50 is ~FLAT across the cliff: 96.07 (b24) -> 101.79 (b32) ->
+     100.00 (b48). This is the decisive column. If the GPU were merely
+     compute-saturated, per-token latency would rise with batch. It does not:
+     the 25 sequences that are running decode at the same speed as before.
+     The extra requests are not slowing decode down -- they are not running.
+   - ttft_ms_p50 explodes instead: 500.5 -> 636.9 -> 955.4. Preempted requests
+     are queued and their prompts re-prefilled on resume; that recompute is
+     pure wasted work and it lands on TTFT, not ITL.
+   - wall_clock_s confirms the waste: b48 is 151.41 s for 2x the requests of
+     b24 (61.16 s). Perfect 2-wave serialisation would be 122.32 s.
+     The extra 29.09 s (+24%) is the recompute + thrash cost.
+
+  PROPOSED CHANGE: cap admission at the measured capacity --
+  `--max-num-seqs 24` (from the default 256), leaving the extra requests in
+  the queue instead of admitting and evicting them.
+  PREDICTED EFFECT, for the batch-48 workload:
+    wall clock  151.41 s -> ~122.32 s (-19%, i.e. a 19% reduction)
+    goodput     162.3 -> ~200.9 tok/s (+24%)
+    preemptions 23 -> 0
+    p95 e2e will get WORSE for the queued half (they wait a full wave,
+    ~+61 s) -- this trades tail latency for throughput and must be stated.
+  Falsifiable: if wall clock at b48 with max_num_seqs=24 comes out near
+  151 s rather than ~122 s, the mechanism is not preemption and I am wrong.
+
+  ALTERNATIVE (better, if we can spend the eng time): the real constraint is
+  that 112 KiB/token x 4096 = 0.44 GiB/seq is huge for a 24 GB card.
+  fp8 KV cache halves it -> ~2x the resident sequences (~50), which moves the
+  cliff past batch 48 entirely. Predicted: b48 wall clock ~= 2x the b24 rate
+  with 0 preemptions, goodput ~402 tok/s, at some accuracy risk that
+  must be measured separately.
+
+==============================================================================
+B3  What column REPORT_v0 misread
+==============================================================================
+  Hypothesis: reported_tok_s counts PROMPT + GENERATED tokens, i.e. it
+  is a total-token counter, not a generation-throughput counter.
+  Test: for every row, does (prompt_len+gen_len)*num_requests/wall_clock_s
+  reproduce reported_tok_s?
+
+   batch  plen  reported  (p+g)*n/wall     err  gen-only  gen/wall
+       1   512      70.2          70.2   0.00%                23.4
+       2   512     132.3         132.3   0.00%                44.1
+       4   512     261.0         261.0   0.00%                87.0
+       8   512     495.4         495.5   0.02%               165.2
+      16   512     883.2         883.4   0.02%               294.5
+      32   512    1489.6        1489.5   0.01%               496.5
+      64   512    2267.3        2267.2   0.01%               755.7
+       4  3584     565.4         565.4   0.01%                70.7
+       8  3584     902.6         902.7   0.01%               112.8
+      16  3584    1311.4        1311.5   0.01%               163.9
+      24  3584    1607.4        1607.3   0.00%               200.9
+      32  3584    1384.0        1383.9   0.01%               173.0
+      48  3584    1298.5        1298.5   0.00%               162.3
+
+  Max error across all 13 rows: 0.02%. Confirmed.
+  => reported_tok_s = (prompt_len + gen_len) * num_requests / wall_clock_s
+  Prompt tokens are prefill. They are processed once, in parallel, and they
+  are not work the user waits on per-token. Counting them as 'throughput'
+  means you can inflate the number ~8x just by padding the prompt.
+
+  --- honest goodput of the batch-24 long-prompt row, two ways ---
+  (A) generated tokens / wall clock
+      = 512 x 24 / 61.16 = 200.9 tok/s
+      equivalently reported_tok_s x gen/(prompt+gen) = 1607.4 x 512/4096 = 200.9 tok/s
+  (B) from inter-token latency -- uses NEITHER wall_clock_s NOR the counter
+      = batch / itl_p50 = 24 / 0.09607 s = 249.8 tok/s   (steady-state decode only)
+
+  (A) and (B) differ by 20% and the difference is prefill:
+      decode  = 512 steps x 96.07 ms = 49.2 s
+      prefill = 61.16 - 49.2 = 12.0 s
+      -> 86,016 prompt tokens / 12.0 s = 7,185 tok/s prefill
+      sanity: 7.23e+14 FLOP / 12.0 s = 60 TFLOPS = 50% of the L4's 121 TFLOPS peak -- a believable prefill MFU, so the split holds.
+
+  ANSWER: honest goodput of the batch-24 long-prompt row = 200.9 tok/s
+          end-to-end (249.8 tok/s if you only count the decode phase).
+
+  --- the report's two conclusions, tested ---
+  1) 'longer prompts give better throughput' -- compare GOODPUT at equal batch:
+   batch   short 512 goodput   long 3584 goodput   ratio
+       4                87.0                70.7    0.81
+       8               165.2               112.8    0.68
+      16               294.5               163.9    0.56
+     Long prompts are WORSE on real generated throughput at every batch size.
+     The report has the sign backwards.
+
+  2) 'batch 48 -> ~3200 tok/s':
+     predicted 3200 tok/s; measured reported_tok_s = 1298.5 (-59%)
+     (that is the like-for-like comparison: the 3200 claim was made on the
+      reported_tok_s basis, so it must be judged against reported_tok_s.)
+     On the honest basis, goodput = 162.3 tok/s, BELOW the batch-24 row
+     (200.9 tok/s). Batch 48 is a regression, not a win.
+     Both errors come from the same source: treating reported_tok_s as
+     generation throughput, then extrapolating it linearly past the point
+     where the KV cache runs out.
+
+==============================================================================
+B4  The one counter to pull
+==============================================================================
+  Pull `vllm:num_preemptions_total` (a monotonic counter; in vLLM it
+  increments once per sequence preemption, and the engine also logs
+  "Sequence group ... is preempted by PreemptionMode.RECOMPUTE").
+
+  Expected values if my B2 mechanism is right:
+    - flat at 0 for the entire batch<=24 sweep, including the 61.16 s b24 run
+    - stepping to ~7 during the b32 run and ~+23 more during the b48 run,
+      matching the log's preempted_seqs column exactly
+    - `vllm:gpu_cache_usage_perc` pinned at ~0.97 (never 1.0 -- block
+      granularity) across b32/b48, and `vllm:num_requests_waiting` > 0
+      throughout, while `vllm:num_requests_running` sits at ~25, NOT 32 or 48.
+
+  The num_requests_running plateau at 25 is what discriminates my explanation
+  from the alternative one. If the slowdown were compute saturation rather
+  than KV eviction, running would be 32 and 48 with preemptions still 0, and
+  itl_ms_p50 would rise proportionally instead of staying at ~100 ms. So:
+  running == 25 with preemptions > 0 confirms me; running == 48 with
+  preemptions == 0 falsifies me.

@@ -1,0 +1,53 @@
+tokenizer: gpt2 (same as REPORT_v0 Section 1)
+TEST 0 PASS: harness reproduces REPORT_v0 Table 1 exactly ((1.27, 7.45, 0.226, 1.579, 5.89) == published (1.27, 7.45, 0.226, 1.579, 5.89))
+
+======================================================================================================================
+CORPUS: sample (starter_kit, 10 sentences)  (eng 10 lines / hin 10 lines)
+======================================================================================================================
+experiment                                    eng_f   hin_f   ratio  eng_tpc hin_tpc   ratio
+----------------------------------------------------------------------------------------------------------------------
+V0  as shipped                                1.265   7.448    5.89    0.226   1.579    7.00
+F1  fix: .split() on whitespace               1.283   7.598    5.92    0.226   1.579    7.00  | fert_ratio 5.89 -> 5.92 (+0.6%)
+    -> phantom empty 'words' created by split(' '): eng=1 hin=1 (of 79/62 counted)
+F2  fix: no .lower()                          1.229   7.448    6.06    0.220   1.579    7.19  | fert_ratio 5.89 -> 6.06 (+2.9%)
+    -> lines actually changed by .lower(): eng=10 hin=0 (the operation is a no-op on Indic scripts -- it is a one-sided edit)
+F3  fix: micro-average (sum/sum)              1.253   7.403    5.91    0.221   1.583    7.16  | fert_ratio 5.89 -> 5.91 (+0.3%)
+F4  chars -> graphemes                        1.265   7.448    5.89    0.226   2.450   10.86  | fert_ratio 5.89 -> 5.89 (+0.0%)
+F4  chars -> bytes                            1.265   7.448    5.89    0.226   0.599    2.65  | fert_ratio 5.89 -> 5.89 (+0.0%)
+F1+F2+F3+F4 all code fixes                    1.231   7.525    6.11    0.214   2.441   11.39  | fert_ratio 5.89 -> 6.11 (+3.8%)
+F6  CONTROL: same text fed as NFD             1.265   7.448    5.89    0.226   1.579    7.00  | fert_ratio 5.89 -> 5.89 (+0.0%)
+    -> lines where NFC(x) != x in our corpus: eng=0 hin=0. NFC is a measured no-op here AND it is the safe direction (see AUDIT.md F6).
+
+======================================================================================================================
+CORPUS: flores (A1 eval corpus)  (eng 1012 lines / hin 1012 lines)
+======================================================================================================================
+experiment                                    eng_f   hin_f   ratio  eng_tpc hin_tpc   ratio
+----------------------------------------------------------------------------------------------------------------------
+V0  as shipped                                1.287   7.865    6.11    0.214   1.529    7.14
+F1  fix: .split() on whitespace               1.287   7.867    6.11    0.214   1.529    7.14  | fert_ratio 6.11 -> 6.11 (+0.0%)
+    -> phantom empty 'words' created by split(' '): eng=0 hin=6 (of 21901/25649 counted)
+F2  fix: no .lower()                          1.244   7.865    6.32    0.207   1.529    7.39  | fert_ratio 6.11 -> 6.32 (+3.4%)
+    -> lines actually changed by .lower(): eng=1012 hin=38 (the operation is a no-op on Indic scripts -- it is a one-sided edit)
+F3  fix: micro-average (sum/sum)              1.278   7.825    6.12    0.212   1.530    7.21  | fert_ratio 6.11 -> 6.12 (+0.2%)
+F4  chars -> graphemes                        1.287   7.865    6.11    0.214   2.341   10.93  | fert_ratio 6.11 -> 6.11 (+0.0%)
+F4  chars -> bytes                            1.287   7.865    6.11    0.214   0.595    2.78  | fert_ratio 6.11 -> 6.11 (+0.0%)
+F1+F2+F3+F4 all code fixes                    1.235   7.826    6.34    0.205   2.335   11.39  | fert_ratio 6.11 -> 6.34 (+3.7%)
+F6  CONTROL: same text fed as NFD             1.289   7.865    6.10    0.214   1.529    7.14  | fert_ratio 6.11 -> 6.10 (-0.1%)
+    -> lines where NFC(x) != x in our corpus: eng=0 hin=0. NFC is a measured no-op here AND it is the safe direction (see AUDIT.md F6).
+
+======================================================================================================================
+CORPUS: in22 (A1 eval corpus)  (eng 1024 lines / hin 1024 lines)
+======================================================================================================================
+experiment                                    eng_f   hin_f   ratio  eng_tpc hin_tpc   ratio
+----------------------------------------------------------------------------------------------------------------------
+V0  as shipped                                1.377   8.332    6.05    0.221   1.539    6.98
+F1  fix: .split() on whitespace               1.377   8.332    6.05    0.221   1.539    6.98  | fert_ratio 6.05 -> 6.05 (+0.0%)
+    -> phantom empty 'words' created by split(' '): eng=0 hin=0 (of 25347/29541 counted)
+F2  fix: no .lower()                          1.333   8.332    6.25    0.214   1.539    7.21  | fert_ratio 6.05 -> 6.25 (+3.3%)
+    -> lines actually changed by .lower(): eng=1023 hin=3 (the operation is a no-op on Indic scripts -- it is a one-sided edit)
+F3  fix: micro-average (sum/sum)              1.376   8.309    6.04    0.218   1.538    7.04  | fert_ratio 6.05 -> 6.04 (-0.2%)
+F4  chars -> graphemes                        1.377   8.332    6.05    0.221   2.380   10.79  | fert_ratio 6.05 -> 6.05 (+0.0%)
+F4  chars -> bytes                            1.377   8.332    6.05    0.221   0.596    2.70  | fert_ratio 6.05 -> 6.05 (+0.0%)
+F1+F2+F3+F4 all code fixes                    1.332   8.309    6.24    0.212   2.370   11.20  | fert_ratio 6.05 -> 6.24 (+3.1%)
+F6  CONTROL: same text fed as NFD             1.377   8.333    6.05    0.221   1.539    6.98  | fert_ratio 6.05 -> 6.05 (+0.0%)
+    -> lines where NFC(x) != x in our corpus: eng=0 hin=0. NFC is a measured no-op here AND it is the safe direction (see AUDIT.md F6).

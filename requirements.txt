@@ -1,0 +1,8 @@
+# Part A only. Part B needs nothing beyond the standard library.
+tiktoken>=0.7
+transformers>=4.40
+sentencepiece>=0.2      # sarvam-1 / muril tokenizers
+protobuf>=4
+regex>=2023.0           # \X, Unicode extended grapheme clusters
+huggingface_hub>=0.23   # IN22-Gen download
+pyarrow>=15             # IN22-Gen is a parquet file

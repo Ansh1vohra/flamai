@@ -1,0 +1,58 @@
+# ============================================================ not part of the
+#                                                              submission
+# The assignment brief itself, and the original zip extract it came with.
+# starter_kit/ (the clean, unmodified copy the scripts read) IS committed.
+AI ASSIGNMENT 2026.pdf
+starter_kit (1)/
+
+# Build artifact. Regenerate with:
+#   zip -qr ../submission.zip . -x ".git/*" ".venv/*" "partA/corpus/_cache/*"
+submission.zip
+
+# ---------------------------------------------------------------- data cache
+# Regenerable download cache (~27 MB): the FLORES-200 tarball and the
+# HuggingFace snapshot for IN22-Gen.  Rebuild with:
+#     python partA/build_corpus.py
+#
+# NOTE: partA/corpus/flores/*.txt and partA/corpus/in22/*.txt ARE committed on
+# purpose -- they are the eval set, and the audit numbers are only reproducible
+# against those exact files (manifest.json carries their SHA-256).
+partA/corpus/_cache/
+.cache/
+huggingface/
+
+# --------------------------------------------------------------------- python
+.venv/
+venv/
+env/
+ENV/
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ------------------------------------------------------------------- os / ide
+# The starter kit zip shipped with all three of these.
+.DS_Store
+._*
+__MACOSX/
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*~
+
+# ------------------------------------------------------------------- scratch
+scratch/
+tmp/
+*.log
