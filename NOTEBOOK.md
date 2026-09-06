@@ -187,9 +187,10 @@ hin cost vs eng, per parallel sentence, FLORES:
 
 **Surprise, and bigger than I expected.** I anticipated an Indic tokenizer
 landing around 2–3×. It lands at ~1.1× — and per *word*, `muril` gives Hindi
-0.99× and `sarvam-1` 0.97×, i.e. **cheaper than English.** ~85% of the "Indic
-penalty" evaporates on a tokenizer change. Finding 3 isn't imprecise, it's
-backwards.
+0.99× and `sarvam-1` 0.97×, i.e. **cheaper than English.** ~85% of the measured
+"Indic penalty" evaporates on a tokenizer change. Finding 3 isn't imprecise,
+it's backwards. (Careful with the causal wording: the swap shows the penalty is
+tokenizer-dependent; it does not isolate *which* tokenizer property causes it.)
 
 **Second surprise, which v0 structurally could not have found:** Tamil is
 15.54× and Kannada 13.58× on GPT-2 — **~2× worse than Hindi's 7.42×.** v0
@@ -229,8 +230,9 @@ HBM  = (11.290 + 7.823 + 1.490) / 0.92               = 22.40 GiB
 
 22.40 GiB is what an L4 actually exposes (23,028 MiB), not 24 GiB. Redoing B1
 with 22.49 GiB gives **26.0 sequences** — right to within one, and the residual
-is PagedAttention's 16-token block granularity (also why util caps at 0.97, never
-1.00). The model of the machine was right; one constant was wrong, and the log
+is most likely block-granular allocation (also why util caps at 0.97, never
+1.00) — though the spec names neither the engine nor the block size, so I label
+that as the leading candidate rather than the established cause. The model of the machine was right; one constant was wrong, and the log
 told me which.
 
 **B3.** Guessed `reported_tok_s` included prompt tokens; tested it on all 13
@@ -262,7 +264,7 @@ sanity: 2 × 4.2e9 × 86,016 / 12.0 s = 60 TFLOPS = 50% of the L4's 121 peak
 averaged. Better answer than the one I set out to write, and it came from the
 disagreement.
 
-**B2.** The decisive column is `itl_ms_p50`, and I nearly missed it. It is
+**B2.** The discriminating column is `itl_ms_p50`, and I nearly missed it. It is
 **flat** across the cliff (96.07 → 101.79 → 100.00) while `ttft_ms_p50` explodes
 (500 → 637 → 955). Compute saturation would raise ITL with batch. It doesn't —
 because the number of sequences actually decoding never exceeds 25. The extra

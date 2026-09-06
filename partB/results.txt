@@ -51,7 +51,10 @@ B1 (c) check the prediction against the log
     KV in use   = 24 x 4096 x 114,688 = 10.500 GiB
     pool size   = 10.500 / 0.93 = 11.290 GiB
     implied HBM = (11.290 + 7.823 + 1.490) / 0.92 = 22.40 GiB
-  22.40 GiB is the real usable capacity of an L4, not 24 GiB.
+  So the batch-24 row back-solves to ~22.40 GiB of EFFECTIVE usable HBM.
+  That is consistent with the gap between a card's advertised 24 GB and the
+  memory actually exposed to a process, but this log does not independently
+  establish it -- I have no L4 here to run nvidia-smi on.
   VERDICT: the 22.49 GiB arithmetic (~26 seqs) matches the log to within one
   sequence; the naive 24 GiB arithmetic (~29) over-predicts by ~12%.
 
@@ -78,10 +81,13 @@ B2  The long-context throughput anomaly
      capacity is ~25 full sequences: 32-7 = 25 and 48-23 = 25. The scheduler
      admits 25 and evicts the rest.
    - itl_ms_p50 is ~FLAT across the cliff: 96.07 (b24) -> 101.79 (b32) ->
-     100.00 (b48). This is the decisive column. If the GPU were merely
-     compute-saturated, per-token latency would rise with batch. It does not:
-     the 25 sequences that are running decode at the same speed as before.
-     The extra requests are not slowing decode down -- they are not running.
+     100.00 (b48). This is the discriminating column. If the GPU were merely
+     compute-saturated, per-token latency would rise with batch. It does not.
+     Flat ITL alone would only suggest that the number of actively decoding
+     sequences is not growing; combined with preempted_seqs (a directly
+     MEASURED column: 0 -> 7 -> 23) and kv_cache_util pinned at 0.97, the
+     reading is that ~25 sequences decode at the prior speed while the extra
+     requests are evicted rather than served.
    - ttft_ms_p50 explodes instead: 500.5 -> 636.9 -> 955.4. Preempted requests
      are queued and their prompts re-prefilled on resume; that recompute is
      pure wasted work and it lands on TTFT, not ITL.

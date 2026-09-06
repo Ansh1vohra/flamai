@@ -9,10 +9,11 @@ The binding constraint is **not the GPU. It is the reviewer.** Compute is
 decision below follows from that.
 
 **Why reject (b):** a ≤1B rewriter must be trained on the same synthetic
-casualized pairs that (a) needs, so it costs everything (a) costs *plus* a
-second model in the serving path — roughly 2× latency, since it regenerates the
-full reply, and Indic replies are token-heavy. It is strictly dominated unless
-we cannot touch the main model's weights. It also puts the hardest part of the
+casualized pairs that (a) needs, so under these assumptions it costs everything
+(a) costs *plus* a second model in the serving path — roughly 2× latency, since
+it regenerates the full reply, and Indic replies are token-heavy. That makes it
+clearly less attractive than (a) here, not merely worse on one axis. It becomes
+attractive again if adapter deployment is blocked. It also puts the hardest part of the
 job — fluent register control in six Indic languages — on the weakest model
 available. Reconsider only if adapter deployment is blocked.
 
@@ -35,15 +36,22 @@ available. Reconsider only if adapter deployment is blocked.
 
 ## Back-of-envelope arithmetic
 
+*Every figure in this section is a **planning assumption**, not a measurement —
+I have not benchmarked this stack. They are order-of-magnitude inputs to a
+go/no-go decision, and the conclusion I draw from them (compute is not the
+constraint) survives all of them being wrong by 3×, which is why I am
+comfortable acting on them.*
+
 **Data volume.** 4k pairs × 6 languages = 24k pairs, ~400 tokens each ≈ 10M
-tokens. (2–4k pairs/language is the usual point where LoRA style transfer
-saturates; more data buys diversity, not register.)
+tokens. (I assume 2–4k pairs/language is roughly where LoRA style transfer
+saturates — a prior from published style/register-transfer work, not something I
+measured; more data buys diversity, not register. Worth a day-1 sanity check.)
 
-**Generation cost.** 24k × ~200 output tokens = 4.8M output tokens. vLLM on one
-A100-80GB with an 8B model ≈ 2.5k output tok/s → **~35 min**, call it 3 h with
-few-shot prefill, rejection sampling and retries.
+**Generation cost.** 24k × ~200 output tokens = 4.8M output tokens. Assuming
+vLLM on one A100-80GB with an 8B model sustains ~2.5k output tok/s → **~35 min**,
+call it 3 h with few-shot prefill, rejection sampling and retries.
 
-**Training cost.** LoRA, bf16, 3 epochs over 10M tokens = 30M tokens at
+**Training cost.** LoRA, bf16, 3 epochs over 10M tokens = 30M tokens; assuming
 ~3k tok/s on one A100 → **~3 h**. Two or three sweeps still fits inside a day.
 
 **⇒ Total GPU: well under a day of the 14 available.** The A100 is not scarce.
@@ -59,8 +67,11 @@ Blind A/B on one prompt ≈ 1.5 min ⇒ ~40 items/h. Budget:
 | 3 | 7.5 h final blind eval (150 prompts × 2 languages) + 2.5 h slack |
 
 150 paired comparisons per language gives SE = 4.1 pp on a win rate, so a true
-60% is 2.45σ from chance — **~80% power at α = 0.05 one-sided.** That is why the
-threshold below is 60% and not 55%: 55% is not detectable with the reviewer we have.
+60% is 2.45σ from chance — **~80% power at α = 0.05 one-sided.** That is a normal
+approximation to the binomial under the stated design assumptions (independent
+items, no rater drift), i.e. a property of the *plan*, not a measured property of
+an evaluation that has been run. It is why the threshold below is 60% and not
+55%: 55% is not detectable with the reviewer time we have.
 
 ## Success metric (numeric)
 

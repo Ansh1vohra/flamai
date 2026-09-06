@@ -64,14 +64,22 @@ pool size   = 10.500 / 0.93                                = 11.290 GiB
 implied HBM = (11.290 + 7.823 + 1.490) / 0.92              = 22.40 GiB
 ```
 
-**22.40 GiB** — which is the real usable capacity of an L4, not 24 GiB. The
-entire discrepancy is the marketing "24 GB" versus the ~22.5 GiB the driver
-actually exposes. So the model of the machine is correct; only the memory
-constant was wrong, and the log tells us what it should have been.
+**~22.40 GiB of effective usable HBM.** That is consistent with the well-known
+gap between a card's advertised capacity and the memory actually exposed to a
+process — but this log does not independently establish that, and I have no L4
+to check against. What the back-solve *does* establish is narrower and enough:
+the model of the machine is right, and the memory constant fed into it was too
+large by ~7%. The log tells us what the constant should have been; it does not
+tell us why.
 
-*(Residual ~1 sequence: PagedAttention allocates in blocks of 16 tokens, so a
-partly-filled block is charged in full, and `kv_cache_util` is reported at block
-granularity — which is also why util tops out at 0.97, never 1.00.)*
+*(Residual ~1 sequence, and `kv_cache_util` topping out at 0.97 rather than
+1.00: the likeliest cause is allocator granularity — `model_spec.md` calls the
+column "KV cache **block** utilization", so allocation is blocked, and a
+partly-filled block is charged in full. I cannot pin the block size: the spec
+names neither the engine nor the granule, though `max_model_len` and
+`gpu_memory_utilization` are vLLM's parameter names and vLLM's default block
+size is 16 tokens. Runtime reservations and fragmentation would produce the same
+one-sequence residual, and this log does not isolate which.)*
 
 **Caveat on the 22.49 GiB row.** I do not have an L4 to run `nvidia-smi` on, so
 that figure is a *typical* reported capacity for the card, not something I
@@ -111,10 +119,13 @@ cliff between batch 24 and 32.
   the 25 sequences that fit and evicts the rest. This is KV-cache exhaustion,
   not compute saturation.
 - **`itl_ms_p50` is FLAT across the cliff**: 96.07 → 101.79 → 100.00. *This is
-  the decisive column.* If the GPU were compute-bound, per-token latency would
-  rise with the number of sequences in the batch. It does not — because the
-  number of sequences actually decoding never rises above 25. The extra requests
-  are not slowing decode down; **they are not running**.
+  the discriminating column.* If the GPU were compute-bound, per-token latency
+  would rise with the number of sequences in the batch. It does not. Flat ITL on
+  its own would only *suggest* that the count of actively decoding sequences is
+  not growing; taken with `preempted_seqs` — a directly measured column, stepping
+  0 → 7 → 23 — and `kv_cache_util` pinned at 0.97, the reading is that ~25
+  sequences continue decoding at the prior speed while the extra requests are
+  evicted rather than served. KV pressure, not compute saturation.
 - **`ttft_ms_p50` explodes instead**: 500.5 → 636.9 → **955.4**. Preempted
   sequences are recomputed from scratch on resume (vLLM's RECOMPUTE mode
   re-prefills the whole 3584-token prompt). That wasted work lands on time-to-
@@ -246,8 +257,8 @@ Expected, if my B2 mechanism is right: **flat at 0** for the entire batch ≤ 24
 sweep including the full 61.16 s batch-24 run, then stepping to **~7** during the
 batch-32 run and **~23 more** during batch-48 — reproducing the log's
 `preempted_seqs` column exactly. Alongside it, `vllm:gpu_cache_usage_perc`
-should sit pinned at **~0.97** (never 1.00, because blocks are allocated in
-16-token granules) and `vllm:num_requests_waiting` should be **> 0** throughout.
+should sit pinned at **~0.97** rather than 1.00 (block-granular allocation) and
+`vllm:num_requests_waiting` should be **> 0** throughout.
 
 The discriminating observation is **`vllm:num_requests_running`, which should
 plateau at ~25 rather than reaching 32 or 48.** That is what separates my

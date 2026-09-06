@@ -96,9 +96,14 @@ Three findings, each of which contradicts REPORT_v0:
 **(a) The penalty is a tokenizer property, not a script property.** REPORT_v0
 finding 3 says "any tokenizer will struggle… a property of the script". Holding
 corpus and denominator fixed and changing only the tokenizer moves Hindi from
-7.42× to 1.13× — **~85% of the penalty is GPT-2, not Devanagari.** `sarvam-1`
-achieves it with a *smaller* vocab than `cl100k` (68k vs 100k), so this is about
-training-data coverage, not vocabulary size.
+7.42× to 1.13× — **the swap removes ~85% of the measured multiplier**, so the
+penalty is largely tokenizer-dependent in this experiment rather than a property
+of the script. What this does *not* do is isolate *which* tokenizer property is
+responsible. One alternative is ruled out by the data: `sarvam-1` gets there with
+a *smaller* vocab than `cl100k` (68k vs 100k), so it is not simply vocabulary
+size. Training-corpus coverage is the natural remaining explanation, but merge
+rules and pre-tokenisation regex are also uncontrolled here, and I did not
+separate them.
 
 **(b) v0's own headline was understated, not overstated.** On the metric v0
 chose, correctly computed, Hindi is 6.34× per word (not 5.89×) and 7.42× per

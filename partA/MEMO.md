@@ -26,8 +26,10 @@ Three corrections to what is currently in the deck:
    Hindi on GPT-2. v0 measured Hindi, the *best-case* Indic language, and
    generalised to all of it.
 3. **"A property of the script, not the tokenizer" is false.** Same corpus,
-   same metric, swap only the tokenizer: 7.42× → 1.13×. ~85% of the penalty
-   is GPT-2's training coverage. It is a fixable defect, not a fact of Devanagari.
+   same metric, swap only the tokenizer: 7.42× → 1.13×, i.e. ~85% of the
+   measured multiplier is tokenizer-dependent. Which tokenizer property drives
+   it is not isolated, but the actionable point holds: it is a fixable defect,
+   not a fact of Devanagari.
 
 ## Recommendation
 

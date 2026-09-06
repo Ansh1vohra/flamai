@@ -207,10 +207,12 @@ parallel sentence:
 | `google/muril-base-cased` | 197k | **1.16×** |
 | `sarvamai/sarvam-1` | 68k | **1.13×** |
 
-Nothing about Devanagari changed between those rows. **~85% of the "Hindi
-penalty" is a property of GPT-2, not of the script.** Note `sarvam-1` gets to
-1.13× with a *smaller* vocabulary than `cl100k`, so this is about what the
-tokenizer was trained on, not raw vocab size.
+Nothing about Devanagari changed between those rows. **The swap removes ~85% of
+the measured multiplier, so the penalty is largely tokenizer-dependent, not a
+property of the script** — which is the claim REPORT_v0 makes. Which *tokenizer*
+property is responsible is not isolated here; vocabulary size alone is ruled out
+(`sarvam-1` reaches 1.13× with 68k against `cl100k`'s 100k), leaving training
+corpus, merge rules and pre-tokenisation uncontrolled.
 
 The recommendation that follows from this finding — "budget 6× serving cost for
 Hindi" — therefore prices in a defect that costs nothing to remove.
