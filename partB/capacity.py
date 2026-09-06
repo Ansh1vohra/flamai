@@ -59,7 +59,7 @@ def b1():
     print(f"  worth ~3 sequences, so compute both:")
     out = {}
     for name, total in (("24 GiB (naive reading of '24 GB')", 24 * GiB),
-                        ("22.49 GiB (what an L4 actually reports: 23028 MiB)",
+                        ("22.49 GiB (typical *reported* L4 capacity, ~23000 MiB;\n                          corroborated by the back-solve below, not assumed)",
                          23028 * 1024**2)):
         budget = GPU_UTIL * total
         kv = budget - weights - OVERHEAD_B

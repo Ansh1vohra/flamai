@@ -21,7 +21,8 @@ B1 (b) concurrent 4096-token sequences
       KV pool = 22.080 - 7.823 - 1.490 = 12.767 GiB
       seqs    = 12.767 / 0.4375 = 29.18  ->  29
 
-    total=22.49 GiB (what an L4 actually reports: 23028 MiB)
+    total=22.49 GiB (typical *reported* L4 capacity, ~23000 MiB;
+                          corroborated by the back-solve below, not assumed)
       budget  = 0.92 x 22.488 GiB = 20.689 GiB
       KV pool = 20.689 - 7.823 - 1.490 = 11.376 GiB
       seqs    = 11.376 / 0.4375 = 26.00  ->  26

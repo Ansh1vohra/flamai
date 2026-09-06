@@ -32,7 +32,7 @@ sequences — so I computed both rather than picking one:
 | assumed total HBM | budget (×0.92) | KV pool | **sequences** |
 |---|---|---|---|
 | 24 GiB (naive) | 22.080 GiB | 22.080 − 7.823 − 1.490 = 12.767 GiB | 12.767 / 0.4375 = **29.2 → 29** |
-| 22.49 GiB (what an L4 actually reports, 23028 MiB) | 20.689 GiB | 11.376 GiB | 11.376 / 0.4375 = **26.0 → 26** |
+| 22.49 GiB (typical *reported* L4 capacity — see caveat below) | 20.689 GiB | 11.376 GiB | 11.376 / 0.4375 = **26.0 → 26** |
 
 **Prediction: 26 sequences, with 29 as the upper bound if "24 GB" were literal.**
 
@@ -72,6 +72,14 @@ constant was wrong, and the log tells us what it should have been.
 *(Residual ~1 sequence: PagedAttention allocates in blocks of 16 tokens, so a
 partly-filled block is charged in full, and `kv_cache_util` is reported at block
 granularity — which is also why util tops out at 0.97, never 1.00.)*
+
+**Caveat on the 22.49 GiB row.** I do not have an L4 to run `nvidia-smi` on, so
+that figure is a *typical* reported capacity for the card, not something I
+measured. It is not load-bearing: the argument runs the other way round. The
+**22.40 GiB back-solved from the log is the measurement**, and the ~22.5 GiB
+figure merely corroborates that it is a plausible hardware number rather than an
+artifact. If the real card reports something slightly different, the back-solve
+is unchanged and the predicted 26 moves by less than one sequence.
 
 ---
 
