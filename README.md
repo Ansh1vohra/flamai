@@ -36,7 +36,7 @@ kill the SFT before it starts.
 
 ```
 NOTEBOOK.md          chronological log — hypotheses, dead ends, reversals
-AI_USAGE.md          where AI helped and where it was wrong (read §4)
+AI_USAGE.md          where AI helped and where it misled me
 partA/
   CORPUS.md          A1 — corpus, preprocessing, what it cannot tell us
   AUDIT.md           A2 — every claimed flaw, isolated and measured
